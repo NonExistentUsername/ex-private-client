@@ -54,6 +54,9 @@ class ApiException(Exception):
         super().__init__()
         self.__message = message
 
+    def __str__(self):
+        return self.__message
+
     @property
     def message(self) -> str:
         return self.__message
@@ -64,10 +67,13 @@ class OldTokenApiException(ApiException):
         super().__init__(message)
 
 
-class Authorization:
+class Authorization(object):
     def __init__(self, token: str, token_type: str):
         self.__token = token
         self.__token_type = token_type
+
+    def asdict(self) -> dict:
+        return {"token": self.__token, "token_type": self.__token_type}
 
     @property
     def token(self) -> str:
@@ -310,7 +316,7 @@ class Api:
 
     @classmethod
     def _user_object_from_json(cls, data) -> User:
-        return User(data["id"], data["username"], data["is_admin"], data["receives_commands"])
+        return User(data["id"], data["username"], data["is_admin"], data["have_access"])
 
     @classmethod
     def _room_member_from_json(cls, data: dict) -> RoomMember:
@@ -356,7 +362,7 @@ class Api:
             "password": password,
         }
 
-        response = requests.post(Api._get_path("login"), json=request_body)
+        response = requests.post(Api._get_path("login"), params=request_body)
         return Api._authorization_from_json(Api._json_result_from_response(response))
 
     @classmethod
@@ -556,7 +562,7 @@ class Client:
     @property
     def is_authorized(self) -> bool:
         if self.__authorization:
-            return Api.verify_authorization(self.__authorization)
+            return self.__try_verify_authorization(self.__authorization)
         return False
 
     @property
@@ -572,6 +578,12 @@ class Client:
 
     def login(self, username: str, password: str) -> None:
         self.__authorization = Api.login(username, password)
+
+    def logout(self) -> bool:
+        if self.__authorization:
+            self.__authorization = None
+            return True
+        return False
 
     @property
     def me(self) -> User:
